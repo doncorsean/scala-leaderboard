@@ -1,5 +1,7 @@
 package com.agoragames.leaderboard
 
+import java.lang
+
 import com.redis._
 
 object LeaderboardDefaults {
@@ -35,35 +37,35 @@ class Leaderboard(leaderboardNameParam: String,
         redisClient.disconnect
     }
     
-    def deleteLeaderboard: Option[Int] = {
+    def deleteLeaderboard: Option[Long] = {
         this.deleteLeaderboardNamed(this.leaderboardName)    
     }
     
-    def deleteLeaderboardNamed(leaderboardName: String): Option[Int] = {
+    def deleteLeaderboardNamed(leaderboardName: String): Option[Long] = {
         redisClient.del(leaderboardName)
     }
         
-    def totalMembers: Option[Int] = {
+    def totalMembers: Option[Long] = {
         this.totalMembersIn(this.leaderboardName)
     }
         
-    def totalMembersIn(leaderboardName: String): Option[Int] = {
+    def totalMembersIn(leaderboardName: String): Option[Long] = {
         redisClient.zcard(leaderboardName)
     }
 
-    def rankMember(memberName: String, score: Double): Boolean = {
+    def rankMember(memberName: String, score: Double): Option[Long] = {
         this.rankMemberIn(this.leaderboardName, memberName, score)
     }
     
-    def rankMemberIn(leaderboardName: String, memberName: String, score: Double): Boolean = {
+    def rankMemberIn(leaderboardName: String, memberName: String, score: Double): Option[Long] = {
         redisClient.zadd(leaderboardName, score, memberName)
     }
     
-    def removeMember(memberName: String): Boolean = {
+    def removeMember(memberName: String): Option[Long] = {
         this.removeMemberFrom(this.leaderboardName, memberName)
     }
     
-    def removeMemberFrom(leaderboardName: String, memberName: String): Boolean = {
+    def removeMemberFrom(leaderboardName: String, memberName: String): Option[Long] = {
         redisClient.zrem(leaderboardName, memberName)
     }
     
@@ -108,16 +110,16 @@ class Leaderboard(leaderboardNameParam: String,
         !(redisClient.zscore(leaderboardName, member) == None)
     }
 
-    def rankFor(member: String, useZeroIndexForRank: Boolean = false): Option[Int] = {
+    def rankFor(member: String, useZeroIndexForRank: Boolean = false): Option[Long] = {
         this.rankForIn(this.leaderboardName, member, useZeroIndexForRank)
     }
     
-    def rankForIn(leaderboardName: String, member: String, useZeroIndexForRank: Boolean = false): Option[Int] = {
+    def rankForIn(leaderboardName: String, member: String, useZeroIndexForRank: Boolean = false): Option[Long] = {
         if (useZeroIndexForRank) {
             redisClient.zrank(leaderboardName, member, true)            
         } else {
             // This feels "not elegant"
-            Some(new java.lang.Integer(redisClient.zrank(leaderboardName, member, true).get + 1))
+            Some(new lang.Long((redisClient.zrank(leaderboardName, member, true).get + 1)))
         }
     }
     
@@ -143,11 +145,11 @@ class Leaderboard(leaderboardNameParam: String,
         dataMap
     }
 
-    def removeMembersInScoreRange(minScore: Double, maxScore: Double): Option[Int] = {
+    def removeMembersInScoreRange(minScore: Double, maxScore: Double): Option[Long] = {
         this.removeMembersInScoreRangeIn(this.leaderboardName, minScore, maxScore)
     }
     
-    def removeMembersInScoreRangeIn(leaderboardName: String, minScore: Double, maxScore: Double): Option[Int] = {
+    def removeMembersInScoreRangeIn(leaderboardName: String, minScore: Double, maxScore: Double): Option[Long] = {
         redisClient.zremrangebyscore(leaderboardName, minScore, maxScore)
     }
     
@@ -203,9 +205,9 @@ class Leaderboard(leaderboardNameParam: String,
     }
     
     def aroundMeIn(leaderboardName: String, member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): java.util.List[(String, Double, Int)] = {
-        var reverseRankForMember: Int = redisClient.zrank(leaderboardName, member, true).get
+        var reverseRankForMember: Long = redisClient.zrank(leaderboardName, member, true).get
 
-        var startingOffset: Int = reverseRankForMember - (pageSize / 2)
+        var startingOffset: Int = (reverseRankForMember - (pageSize / 2)).toInt
         if (startingOffset < 0) {
           startingOffset = 0
         }

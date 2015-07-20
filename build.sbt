@@ -1,15 +1,15 @@
 name := "scala-leaderboard"
 
-version := "2.0.0"
+version := "2.0.1"
 
 organization := "org.agoragames"
 
-scalaVersion := "2.9.0"
+scalaVersion := "2.11.5"
 
-libraryDependencies += "net.debasishg" % "redisclient_2.9.0" % "2.3.1"
+libraryDependencies += "net.debasishg" %% "redisclient" % "3.0"
 
 libraryDependencies += "junit" % "junit" % "4.8.1" % "test"
  
-libraryDependencies += "org.scalatest" % "scalatest_2.9.0" % "1.6.1" % "test"
+libraryDependencies += "org.scalatest" %% "scalatest" % "3.0.0-M7" % "test"
 
 scalacOptions ++= Seq("-deprecation")
