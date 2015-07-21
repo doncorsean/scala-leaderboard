@@ -4,7 +4,7 @@ version := "2.0.1"
 
 organization := "org.agoragames"
 
-scalaVersion := "2.11.5"
+scalaVersion := "2.10.4"
 
 libraryDependencies += "net.debasishg" %% "redisclient" % "3.0"
 

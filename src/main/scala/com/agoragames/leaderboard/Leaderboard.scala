@@ -5,9 +5,9 @@ import java.lang
 import com.redis._
 
 object LeaderboardDefaults {
-    val VERSION = "2.0.0"
+    val VERSION = "2.0.1"
     val DEFAULT_PAGE_SIZE = 25
-    val DEFAULT_REDIS_HOST = "localhost"
+    val DEFAULT_REDIS_HOST = "leaderboard-001.uj3orx.0001.use1.cache.amazonaws.com"
     val DEFAULT_REDIS_PORT = 6379   
 }
 
@@ -137,9 +137,9 @@ class Leaderboard(leaderboardNameParam: String,
         dataMap += ("member" -> member)
         dataMap += ("score" -> responses(0).asInstanceOf[Option[Double]])
         if (!useZeroIndexForRank) {
-            dataMap += ("rank" -> Some(responses(1).asInstanceOf[Option[Int]].get + 1))
+            dataMap += ("rank" -> Some(responses(1).asInstanceOf[Option[Long]].get + 1))
         } else {
-            dataMap += ("rank" -> Some(responses(1).asInstanceOf[Option[Int]]))            
+            dataMap += ("rank" -> Some(responses(1).asInstanceOf[Option[Long]]))
         }     
                 
         dataMap
@@ -157,7 +157,7 @@ class Leaderboard(leaderboardNameParam: String,
         this.leadersIn(this.leaderboardName, currentPage, withScores, withRank, useZeroIndexForRank, pageSize)
     }
     
-    def leadersIn(leaderboardName: String, currentPageParam: Int, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): java.util.List[(String, Double, Int)] = {
+    def leadersIn(leaderboardName: String, currentPageParam: Int, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): List[(String, Double, Long)] = {
         var currentPage: Int = currentPageParam
         
         if (currentPage < 1) {
@@ -176,8 +176,13 @@ class Leaderboard(leaderboardNameParam: String,
         var endingOffset: Int = (startingOffset + pageSize) - 1
                 
         var rawLeaderData = redisClient.zrange(leaderboardName, startingOffset, endingOffset, RedisClient.DESC)
-        var massagedLeaderData: java.util.List[(String, Double, Int)] = new java.util.ArrayList[(String, Double, Int)]
-        
+        var massagedLeaderData = List[(String, Double, Long)]()
+
+        rawLeaderData match{
+            case Some(data) =>
+            case _ =>
+        }
+
         if (rawLeaderData != None) {
             var responses = redisClient.pipeline { transaction =>
                 for (leader <- rawLeaderData.get) {
@@ -187,24 +192,24 @@ class Leaderboard(leaderboardNameParam: String,
             }.get
         
             for (leaderIndex <- rawLeaderData.get.indices) {
-                var rank = responses(leaderIndex * 2 + 1).asInstanceOf[Some[Int]].get
+                var rank = responses(leaderIndex * 2 + 1).asInstanceOf[Some[Long]].get
             
                 if (!useZeroIndexForRank) {
                     rank += 1
                 }
-            
-                massagedLeaderData.add((rawLeaderData.get(leaderIndex), responses(leaderIndex * 2).asInstanceOf[Some[Double]].get, rank))
+
+                massagedLeaderData = massagedLeaderData ::: List[(String, Double, Long)]((rawLeaderData.get(leaderIndex), responses(leaderIndex * 2).asInstanceOf[Some[Double]].get, rank))
             }
         }
         
         massagedLeaderData        
     }
     
-    def aroundMe(member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): java.util.List[(String, Double, Int)] = {
+    def aroundMe(member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): List[(String, Double, Long)] = {
         this.aroundMeIn(this.leaderboardName, member, withScores, withRank, useZeroIndexForRank, pageSize)      
     }
     
-    def aroundMeIn(leaderboardName: String, member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): java.util.List[(String, Double, Int)] = {
+    def aroundMeIn(leaderboardName: String, member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): List[(String, Double, Long)] = {
         var reverseRankForMember: Long = redisClient.zrank(leaderboardName, member, true).get
 
         var startingOffset: Int = (reverseRankForMember - (pageSize / 2)).toInt
@@ -214,7 +219,7 @@ class Leaderboard(leaderboardNameParam: String,
         var endingOffset = (startingOffset + pageSize) - 1
 
         var rawLeaderData = redisClient.zrange(leaderboardName, startingOffset, endingOffset, RedisClient.DESC)
-        var massagedLeaderData: java.util.List[(String, Double, Int)] = new java.util.ArrayList[(String, Double, Int)]        
+        var massagedLeaderData: List[(String, Double, Long)] = List[(String, Double, Long)]()
 
         if (rawLeaderData != None) {
             var responses = redisClient.pipeline { transaction =>
@@ -225,25 +230,24 @@ class Leaderboard(leaderboardNameParam: String,
             }.get
         
             for (leaderIndex <- rawLeaderData.get.indices) {
-                var rank = responses(leaderIndex * 2 + 1).asInstanceOf[Some[Int]].get
+                var rank = responses(leaderIndex * 2 + 1).asInstanceOf[Some[Long]].get
             
                 if (!useZeroIndexForRank) {
                     rank += 1
                 }
-            
-                massagedLeaderData.add((rawLeaderData.get(leaderIndex), responses(leaderIndex * 2).asInstanceOf[Some[Double]].get, rank))
+
+              massagedLeaderData = massagedLeaderData :::  List[(String, Double, Long)]((rawLeaderData.get(leaderIndex), responses(leaderIndex * 2).asInstanceOf[Some[Double]].get, rank))
             }
         }
-
         massagedLeaderData
     }
     
-    def rankedInList(members: Array[String], withScores: Boolean = true, useZeroIndexForRank: Boolean = false): java.util.List[(String, Double, Int)] = {
+    def rankedInList(members: Array[String], withScores: Boolean = true, useZeroIndexForRank: Boolean = false): List[(String, Double, Long)] = {
         rankedInListIn(this.leaderboardName, members, withScores, useZeroIndexForRank)
     }
     
-    def rankedInListIn(leaderboardName: String, members: Array[String], withScores: Boolean = true, useZeroIndexForRank: Boolean = false): java.util.List[(String, Double, Int)] = {
-        var ranksForMembers: java.util.List[(String, Double, Int)] = new java.util.ArrayList[(String, Double, Int)]
+    def rankedInListIn(leaderboardName: String, members: Array[String], withScores: Boolean = true, useZeroIndexForRank: Boolean = false): List[(String, Double, Long)] = {
+        var ranksForMembers: List[(String, Double, Long)] = List[(String, Double, Long)]()
         
         var responses = redisClient.pipeline { transaction =>
             for (member <- members) {
@@ -253,16 +257,14 @@ class Leaderboard(leaderboardNameParam: String,
         }.get
     
         for (memberIndex <- members.indices) {
-            var rank = responses(memberIndex * 2 + 1).asInstanceOf[Some[Int]].get
+            var rank = responses(memberIndex * 2 + 1).asInstanceOf[Some[Long]].get
         
             if (!useZeroIndexForRank) {
                 rank += 1
             }
-        
-            ranksForMembers.add((members(memberIndex), responses(memberIndex * 2).asInstanceOf[Some[Double]].get, rank))
+
+          ranksForMembers = ranksForMembers ::: List[(String, Double, Long)]((members(memberIndex), responses(memberIndex * 2).asInstanceOf[Some[Double]].get, rank))
         }
-        
-        
         ranksForMembers
     }
 }
