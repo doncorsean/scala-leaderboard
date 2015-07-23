@@ -1,12 +1,12 @@
 name := "scala-leaderboard"
 
-version := "2.0.1"
+version := "2.0.5"
 
 organization := "org.agoragames"
 
-scalaVersion := "2.10.4"
+scalaVersion := "2.11.7"
 
-libraryDependencies += "net.debasishg" %% "redisclient" % "3.0"
+libraryDependencies += "net.debasishg" %% "redisclient" % "3.1.1"
 
 libraryDependencies += "junit" % "junit" % "4.8.1" % "test"
  

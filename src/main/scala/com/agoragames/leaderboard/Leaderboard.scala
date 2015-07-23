@@ -3,11 +3,12 @@ package com.agoragames.leaderboard
 import java.lang
 
 import com.redis._
+import com.redis.serialization.Format
 
 object LeaderboardDefaults {
-    val VERSION = "2.0.1"
+    val VERSION = "2.0.2"
     val DEFAULT_PAGE_SIZE = 25
-    val DEFAULT_REDIS_HOST = "leaderboard-001.uj3orx.0001.use1.cache.amazonaws.com"
+    val DEFAULT_REDIS_HOST = "localhost"
     val DEFAULT_REDIS_PORT = 6379   
 }
 
@@ -18,10 +19,9 @@ class Leaderboard(leaderboardNameParam: String,
         redisOptions: scala.collection.mutable.HashMap[String, Object] = scala.collection.mutable.HashMap("host" -> LeaderboardDefaults.DEFAULT_REDIS_HOST, "port" -> LeaderboardDefaults.DEFAULT_REDIS_PORT.asInstanceOf[AnyRef])) {
     private var redisClient: RedisClient = _;
     
-    if (redisOptions.get("redis_connection") != None) {
-        redisClient = redisOptions.get("redis_connection").get.asInstanceOf[RedisClient]
-    } else {
-        redisClient = new RedisClient(host, port)
+    redisOptions.get("redis_connection") match {
+        case Some(client) => redisClient = client.asInstanceOf[RedisClient] //redisOptions.get("redis_connection").get.asInstanceOf[RedisClient]
+        case None => redisClient = new RedisClient(host, port)
     }
     
     val version = LeaderboardDefaults.VERSION
@@ -74,7 +74,10 @@ class Leaderboard(leaderboardNameParam: String,
     }
     
     def totalPagesIn(leaderboardName: String, pageSize: Int): Int = {
-        scala.math.ceil(this.totalMembersIn(leaderboardName).get.asInstanceOf[Float] / pageSize.asInstanceOf[Float]).asInstanceOf[Int]
+        this.totalMembersIn(leaderboardName) match {
+            case Some(totalMembers) => scala.math.ceil(totalMembers.toFloat / pageSize.toFloat).toInt
+            case None => 0
+        }
     }
 
     // RedisClient does not currently support zcount.
@@ -110,19 +113,23 @@ class Leaderboard(leaderboardNameParam: String,
         !(redisClient.zscore(leaderboardName, member) == None)
     }
 
-    def rankFor(member: String, useZeroIndexForRank: Boolean = false): Option[Long] = {
-        this.rankForIn(this.leaderboardName, member, useZeroIndexForRank)
+    def rankFor(member: String, useZeroIndexForRank: Boolean = false, unique: Boolean = true, reverse: Boolean = true): Option[Long] = {
+        this.rankForIn(this.leaderboardName, member, useZeroIndexForRank,unique,reverse)
     }
     
-    def rankForIn(leaderboardName: String, member: String, useZeroIndexForRank: Boolean = false): Option[Long] = {
+    def rankForIn(leaderboardName: String, member: String, useZeroIndexForRank: Boolean = true, unique: Boolean = true, reverse: Boolean = true): Option[Long] = {
         if (useZeroIndexForRank) {
-            redisClient.zrank(leaderboardName, member, true)            
+            redisClient.zrank(leaderboardName, member, reverse,unique)
         } else {
-            // This feels "not elegant"
-            Some(new lang.Long((redisClient.zrank(leaderboardName, member, true).get + 1)))
+            redisClient.zrank(leaderboardName, member, reverse,unique) match {
+                case Some(rank)  => Some(rank + 1)
+                case None => None
+            }
         }
     }
-    
+
+
+
     def scoreAndRankFor(member: String, useZeroIndexForRank: Boolean = false): scala.collection.mutable.HashMap[String, Object] = {
         this.scoreAndRankForIn(this.leaderboardName, member, useZeroIndexForRank)
     }
@@ -131,7 +138,7 @@ class Leaderboard(leaderboardNameParam: String,
         var dataMap = scala.collection.mutable.HashMap.empty[String, Object]
         var responses: List[Any] = redisClient.pipeline { transaction =>
             transaction.zscore(leaderboardName, member)
-            transaction.zrank(leaderboardName, member, true)
+            transaction.zrank(leaderboardName, member, true, true)
         }.get
                 
         dataMap += ("member" -> member)
@@ -187,7 +194,7 @@ class Leaderboard(leaderboardNameParam: String,
             var responses = redisClient.pipeline { transaction =>
                 for (leader <- rawLeaderData.get) {
                     transaction.zscore(leaderboardName, leader)
-                    transaction.zrank(leaderboardName, leader, true)
+                    transaction.zrank(leaderboardName, leader, true, true)
                 }
             }.get
         
@@ -210,7 +217,7 @@ class Leaderboard(leaderboardNameParam: String,
     }
     
     def aroundMeIn(leaderboardName: String, member: String, withScores: Boolean = true, withRank: Boolean = true, useZeroIndexForRank: Boolean = false, pageSize: Int = LeaderboardDefaults.DEFAULT_PAGE_SIZE): List[(String, Double, Long)] = {
-        var reverseRankForMember: Long = redisClient.zrank(leaderboardName, member, true).get
+        var reverseRankForMember: Long = redisClient.zrank(leaderboardName, member, true, true).get
 
         var startingOffset: Int = (reverseRankForMember - (pageSize / 2)).toInt
         if (startingOffset < 0) {
@@ -225,7 +232,7 @@ class Leaderboard(leaderboardNameParam: String,
             var responses = redisClient.pipeline { transaction =>
                 for (leader <- rawLeaderData.get) {
                     transaction.zscore(leaderboardName, leader)
-                    transaction.zrank(leaderboardName, leader, true)
+                    transaction.zrank(leaderboardName, leader, true, true)
                 }
             }.get
         
@@ -252,7 +259,7 @@ class Leaderboard(leaderboardNameParam: String,
         var responses = redisClient.pipeline { transaction =>
             for (member <- members) {
                 transaction.zscore(leaderboardName, member)
-                transaction.zrank(leaderboardName, member, true)
+                transaction.zrank(leaderboardName, member, true,true)
             }
         }.get
     
